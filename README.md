@@ -56,6 +56,59 @@ report = run_poc_simulation;
 The public PoC entry runs 1,000 codewords by default. The extended regression
 suite audits 10,000 codewords.
 
+### Why the proof-of-concept decoder is solvable
+
+The PoC is a **reference-aided similarity-transform identification**
+problem. After the ordinary WiFi channel is removed using the all-one tag
+state, the effective tag channel is
+
+\[
+G(\mathbf d)=H_R^{-1}D(\mathbf d)H_R,
+\qquad
+D(\mathbf d)=\operatorname{diag}(d_1,\ldots,d_K).
+\]
+
+This is not the generic equation \(Y=AXA\). It is a similarity transform,
+equivalently the homogeneous Sylvester/intertwining equation
+
+\[
+D(\mathbf d)H_R=H_RG(\mathbf d).
+\]
+
+For the 2-tag PoC, the explicit reference is
+\(D_{\rm ref}=\operatorname{diag}(-1,1)\). Its distinct eigenvalues identify
+the two channel directions. The original Efficient decoder solves this
+relation in closed form by fixing one representative of the otherwise
+non-unique channel matrix.
+
+The physical \(H_R\) need not be recovered uniquely. If \(C\) is any
+invertible diagonal matrix, \(CH_R\) is an equally valid solution because
+\(C\) commutes with every diagonal tag matrix. This ambiguity cancels during
+decoding:
+
+\[
+(CH_R)G(\mathbf d)(CH_R)^{-1}
+=CD(\mathbf d)C^{-1}
+=D(\mathbf d).
+\]
+
+Thus the channel can have infinitely many equivalent representations while
+the diagonal tag state, and therefore the transmitted bits, remains
+recoverable. The main conditions are:
+
+- \(H_R\) is invertible and reasonably conditioned;
+- the reference states distinguish the tag dimensions;
+- for \(K\) tag dimensions, the baseline plus explicit-reference state
+  matrix has rank \(K\);
+- the channel stays approximately constant during reference and data.
+
+Full rank alone is not enough for a single reference operator: the identity
+matrix is full rank but its repeated eigenvalues reveal no channel
+directions. Distinguishable reference signatures are the key. The
+packet-level HT implementation generalizes this principle by estimating
+basis operators with joint weighted least squares and applying codebook
+maximum-likelihood detection.
+
 Run the public regression suite with:
 
 ```matlab
@@ -239,6 +292,52 @@ report = run_poc_simulation;
 
 公开PoC入口默认运行1,000个codewords；扩展测试套件使用10,000个codewords。
 
+### PoC为什么可解：参考辅助的相似变换辨识
+
+PoC的核心不是一般形式的\(Y=AXA\)，而是相似变换问题。利用tag全为
+\(+1\)时的baseline消去普通WiFi信道后，可以得到
+
+\[
+G(\mathbf d)=H_R^{-1}D(\mathbf d)H_R,
+\qquad
+D(\mathbf d)=\operatorname{diag}(d_1,\ldots,d_K).
+\]
+
+它也可以写成齐次Sylvester（intertwining）方程：
+
+\[
+D(\mathbf d)H_R=H_RG(\mathbf d).
+\]
+
+在2-tag PoC中，显式reference为
+\(D_{\rm ref}=\operatorname{diag}(-1,1)\)。两个不同的特征值可以区分
+两条信道方向。原始Efficient解码器没有直接调用特征值分解，而是固定
+一组归一化条件，用闭式公式选取一个等价的信道矩阵。
+
+这里最容易被误解、也最关键的一点是：我们不需要唯一恢复真实的
+\(H_R\)。对任意可逆对角矩阵\(C\)，\(CH_R\)都是等价解，因为\(C\)
+与所有对角tag状态矩阵可交换。这个不确定性会在解码时完全抵消：
+
+\[
+(CH_R)G(\mathbf d)(CH_R)^{-1}
+=CD(\mathbf d)C^{-1}
+=D(\mathbf d).
+\]
+
+因此，物理信道可以有无穷多个等价表示，但tag的对角状态以及对应bits
+仍然可以恢复。成立条件包括：
+
+- \(H_R\)可逆且条件数不能过差；
+- reference states能够区分各个tag维度；
+- 对\(K\)个tag维度，baseline与显式reference组成的状态矩阵必须满秩
+  \(K\)；
+- reference和data期间信道近似不变。
+
+需要特别注意：单个reference operator“满秩”本身并不够。例如单位矩阵
+虽然满秩，却因为特征值重复而不能暴露信道方向；真正关键的是reference
+签名具有足够的可辨识性。packet-level HT实现把同一个原理推广为联合
+加权最小二乘的basis-operator估计，再使用码本ML完成判决。
+
 ### 222与244的公平比较
 
 \(M\times K\times N\)分别表示WiFi发送天线/stream数、tag天线数和接收天线数。
@@ -301,3 +400,11 @@ report = run_high_throughput_evaluation;
 8微秒。对应raw rate为：1-tag约125 kbps、222为250 kbps、244为500 kbps。
 222和244均占用256个HT data symbols，也就是128个tag slots，分别承载256和
 512个tag bits。实际net goodput会另外计入reference overhead和误码。
+
+## License
+
+This code is released under the MIT License. See [LICENSE](LICENSE).
+
+## 许可证
+
+本代码采用 MIT License 发布，详见 [LICENSE](LICENSE)。
