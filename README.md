@@ -68,44 +68,43 @@ The PoC is a **reference-aided similarity-transform identification**
 problem. After the ordinary WiFi channel is removed using the all-one tag
 state, the effective tag channel is
 
-\[
-G(\mathbf d)=H_R^{-1}D(\mathbf d)H_R,
-\qquad
-D(\mathbf d)=\operatorname{diag}(d_1,\ldots,d_K).
-\]
+```text
+G(d) = inv(H_R) * D(d) * H_R
+D(d) = diag(d_1, ..., d_K)
+```
 
-This is not the generic equation \(Y=AXA\). It is a similarity transform,
+This is not the generic equation `Y = A * X * A`. It is a similarity transform,
 equivalently the homogeneous Sylvester/intertwining equation
 
-\[
-D(\mathbf d)H_R=H_RG(\mathbf d).
-\]
+```text
+D(d) * H_R = H_R * G(d)
+```
 
 For the 2-tag PoC, the explicit reference is
-\(D_{\rm ref}=\operatorname{diag}(-1,1)\). Its distinct eigenvalues identify
+`D_ref = diag(-1, 1)`. Its distinct eigenvalues identify
 the two channel directions. The original Efficient decoder solves this
 relation in closed form by fixing one representative of the otherwise
 non-unique channel matrix.
 
-The physical \(H_R\) need not be recovered uniquely. If \(C\) is any
-invertible diagonal matrix, \(CH_R\) is an equally valid solution because
-\(C\) commutes with every diagonal tag matrix. This ambiguity cancels during
+The physical `H_R` need not be recovered uniquely. If `C` is any
+invertible diagonal matrix, `C * H_R` is an equally valid solution because
+`C` commutes with every diagonal tag matrix. This ambiguity cancels during
 decoding:
 
-\[
-(CH_R)G(\mathbf d)(CH_R)^{-1}
-=CD(\mathbf d)C^{-1}
-=D(\mathbf d).
-\]
+```text
+(C * H_R) * G(d) * inv(C * H_R)
+    = C * D(d) * inv(C)
+    = D(d)
+```
 
 Thus the channel can have infinitely many equivalent representations while
 the diagonal tag state, and therefore the transmitted bits, remains
 recoverable. The main conditions are:
 
-- \(H_R\) is invertible and reasonably conditioned;
+- `H_R` is invertible and reasonably conditioned;
 - the reference states distinguish the tag dimensions;
-- for \(K\) tag dimensions, the baseline plus explicit-reference state
-  matrix has rank \(K\);
+- for `K` tag dimensions, the baseline plus explicit-reference state
+  matrix has rank `K`;
 - the channel stays approximately constant during reference and data.
 
 Full rank alone is not enough for a single reference operator: the identity
@@ -125,11 +124,11 @@ reports = run_all_tests('Full', true);  % extended noiseless validation
 
 ## Simulation structure
 
-VMscatter uses the notation \(M\times K\times N\):
+VMscatter uses the notation `M x K x N`:
 
-- \(M\): WiFi transmit antennas/streams;
-- \(K\): VMscatter tag antennas;
-- \(N\): receiver antennas.
+- `M`: WiFi transmit antennas/streams;
+- `K`: VMscatter tag antennas;
+- `N`: receiver antennas.
 
 The release compares:
 
@@ -156,9 +155,9 @@ The receiver follows Eqn. 16 in the paper:
 For the documented two-antenna mapping in Fig. 4, information bits `[a b]`
 produce tag states
 
-\[
-\left[e^{j\pi(a+b)}, e^{j\pi a}\right].
-\]
+```text
+[ exp(j*pi*(a+b)),  exp(j*pi*a) ]
+```
 
 For four tag antennas, this simulator applies the same documented mapping to
 two independent antenna pairs. This is a bijective 4-bit-to-4-state pairwise
@@ -181,17 +180,16 @@ errors and reference overhead. Net goodput is reported separately.
 During the HT-LTF, the tag uses the all-ones state. Conventional WiFi channel
 estimation and equalization therefore provide the baseline operator
 
-\[
-G(\mathbf 1)=I.
-\]
+```text
+G(1) = I
+```
 
-For \(K\) tag antennas, only \(K-1\) additional states are transmitted. The
+For `K` tag antennas, only `K-1` additional states are transmitted. The
 design must satisfy
 
-\[
-\operatorname{rank}
-\left[\mathbf 1,\mathbf d_1,\ldots,\mathbf d_{K-1}\right]=K.
-\]
+```text
+rank([1, d_1, ..., d_{K-1}]) = K
+```
 
 The three evaluation profiles are:
 
@@ -324,43 +322,42 @@ report = run_poc_simulation;
 
 #### PoC为什么可解：参考辅助的相似变换辨识
 
-PoC的核心不是一般形式的\(Y=AXA\)，而是相似变换问题。利用tag全为
-\(+1\)时的baseline消去普通WiFi信道后，可以得到
+PoC的核心不是一般形式的 `Y = A * X * A`，而是相似变换问题。利用tag全为
+`+1`时的baseline消去普通WiFi信道后，可以得到
 
-\[
-G(\mathbf d)=H_R^{-1}D(\mathbf d)H_R,
-\qquad
-D(\mathbf d)=\operatorname{diag}(d_1,\ldots,d_K).
-\]
+```text
+G(d) = inv(H_R) * D(d) * H_R
+D(d) = diag(d_1, ..., d_K)
+```
 
 它也可以写成齐次Sylvester（intertwining）方程：
 
-\[
-D(\mathbf d)H_R=H_RG(\mathbf d).
-\]
+```text
+D(d) * H_R = H_R * G(d)
+```
 
 在2-tag PoC中，显式reference为
-\(D_{\rm ref}=\operatorname{diag}(-1,1)\)。两个不同的特征值可以区分
+`D_ref = diag(-1, 1)`。两个不同的特征值可以区分
 两条信道方向。原始Efficient解码器没有直接调用特征值分解，而是固定
 一组归一化条件，用闭式公式选取一个等价的信道矩阵。
 
 这里最容易被误解、也最关键的一点是：我们不需要唯一恢复真实的
-\(H_R\)。对任意可逆对角矩阵\(C\)，\(CH_R\)都是等价解，因为\(C\)
+`H_R`。对任意可逆对角矩阵`C`，`C * H_R`都是等价解，因为`C`
 与所有对角tag状态矩阵可交换。这个不确定性会在解码时完全抵消：
 
-\[
-(CH_R)G(\mathbf d)(CH_R)^{-1}
-=CD(\mathbf d)C^{-1}
-=D(\mathbf d).
-\]
+```text
+(C * H_R) * G(d) * inv(C * H_R)
+    = C * D(d) * inv(C)
+    = D(d)
+```
 
 因此，物理信道可以有无穷多个等价表示，但tag的对角状态以及对应bits
 仍然可以恢复。成立条件包括：
 
-- \(H_R\)可逆且条件数不能过差；
+- `H_R`可逆且条件数不能过差；
 - reference states能够区分各个tag维度；
-- 对\(K\)个tag维度，baseline与显式reference组成的状态矩阵必须满秩
-  \(K\)；
+- 对`K`个tag维度，baseline与显式reference组成的状态矩阵必须满秩
+  `K`；
 - reference和data期间信道近似不变。
 
 需要特别注意：单个reference operator“满秩”本身并不够。例如单位矩阵
@@ -378,7 +375,7 @@ reports = run_all_tests('Full', true);  % 扩展无噪声验证
 
 ### 仿真结构
 
-\(M\times K\times N\)分别表示WiFi发送天线/stream数、tag天线数和接收天线数。
+`M x K x N`分别表示WiFi发送天线/stream数、tag天线数和接收天线数。
 本代码比较：
 
 - **2x2x2**：2个WiFi发送stream、2根tag天线、2根接收天线；
@@ -401,9 +398,9 @@ HT-Data OFDM symbols。2x2x2使用128个2-bit codewords；2x4x4使用64个
 
 对于论文Figure 4中明确给出的2-tag映射，输入bits `[a b]`映射为
 
-\[
-\left[e^{j\pi(a+b)}, e^{j\pi a}\right].
-\]
+```text
+[ exp(j*pi*(a+b)),  exp(j*pi*a) ]
+```
 
 对于4根tag天线，代码把同一个2-tag映射分别应用到两组天线对上。这是一个
 4-bit到4个tag状态的双射pairwise extension；论文展示了4-tag throughput结果，
@@ -423,16 +420,15 @@ HT-Data OFDM symbols。2x2x2使用128个2-bit codewords；2x4x4使用64个
 
 HT-LTF期间tag使用全一状态。常规WiFi信道估计和均衡因此提供baseline operator：
 
-\[
-G(\mathbf 1)=I.
-\]
+```text
+G(1) = I
+```
 
-对于\(K\)根tag天线，只需额外发送\(K-1\)种状态，并满足
+对于`K`根tag天线，只需额外发送`K-1`种状态，并满足
 
-\[
-\operatorname{rank}
-\left[\mathbf 1,\mathbf d_1,\ldots,\mathbf d_{K-1}\right]=K.
-\]
+```text
+rank([1, d_1, ..., d_{K-1}]) = K
+```
 
 三种评估配置为：
 
