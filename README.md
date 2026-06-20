@@ -1,6 +1,6 @@
 # VMscatter: A Versatile MIMO Backscatter
 
-[中文说明](#中文说明)
+[中文说明](README.zh-CN.md)
 
 This repository contains the MATLAB proof-of-concept and IEEE 802.11n HT
 simulation for **VMscatter**, published at USENIX NSDI 2020:
@@ -247,6 +247,10 @@ run_full_evaluation.m         full reference-profile evaluation
 run_high_throughput_evaluation.m  paper T=0 throughput evaluation
 ```
 
+## License
+
+This code is released under the MIT License. See [LICENSE](LICENSE).
+
 ## Citation
 
 ```bibtex
@@ -257,154 +261,3 @@ run_high_throughput_evaluation.m  paper T=0 throughput evaluation
   year      = {2020}
 }
 ```
-
----
-
-## 中文说明
-
-本仓库包含VMscatter的MATLAB原理仿真和IEEE 802.11n HT完整仿真。论文发表于
-USENIX NSDI 2020，链接见README开头。
-
-### 环境与运行
-
-需要MATLAB R2024b、WLAN Toolbox、Communications Toolbox和Signal
-Processing Toolbox。本代码只调用MathWorks官方WLAN函数，不包含也不修改
-MATLAB内部函数副本。
-
-在仓库根目录运行：
-
-```matlab
-result = run_quick_demo;
-```
-
-这是快速安装和数据流检查，统计量较小，不能作为正式BER结论。正式复现实验：
-
-```matlab
-result = run_full_evaluation;
-```
-
-正式实验扫描2--10 dB，结果写入本地`results/`。原理解码仿真：
-
-```matlab
-cd Proof-of-Concept_Simulation
-report = run_poc_simulation;
-```
-
-公开PoC入口默认运行1,000个codewords；扩展测试套件使用10,000个codewords。
-
-### PoC为什么可解：参考辅助的相似变换辨识
-
-PoC的核心不是一般形式的\(Y=AXA\)，而是相似变换问题。利用tag全为
-\(+1\)时的baseline消去普通WiFi信道后，可以得到
-
-\[
-G(\mathbf d)=H_R^{-1}D(\mathbf d)H_R,
-\qquad
-D(\mathbf d)=\operatorname{diag}(d_1,\ldots,d_K).
-\]
-
-它也可以写成齐次Sylvester（intertwining）方程：
-
-\[
-D(\mathbf d)H_R=H_RG(\mathbf d).
-\]
-
-在2-tag PoC中，显式reference为
-\(D_{\rm ref}=\operatorname{diag}(-1,1)\)。两个不同的特征值可以区分
-两条信道方向。原始Efficient解码器没有直接调用特征值分解，而是固定
-一组归一化条件，用闭式公式选取一个等价的信道矩阵。
-
-这里最容易被误解、也最关键的一点是：我们不需要唯一恢复真实的
-\(H_R\)。对任意可逆对角矩阵\(C\)，\(CH_R\)都是等价解，因为\(C\)
-与所有对角tag状态矩阵可交换。这个不确定性会在解码时完全抵消：
-
-\[
-(CH_R)G(\mathbf d)(CH_R)^{-1}
-=CD(\mathbf d)C^{-1}
-=D(\mathbf d).
-\]
-
-因此，物理信道可以有无穷多个等价表示，但tag的对角状态以及对应bits
-仍然可以恢复。成立条件包括：
-
-- \(H_R\)可逆且条件数不能过差；
-- reference states能够区分各个tag维度；
-- 对\(K\)个tag维度，baseline与显式reference组成的状态矩阵必须满秩
-  \(K\)；
-- reference和data期间信道近似不变。
-
-需要特别注意：单个reference operator“满秩”本身并不够。例如单位矩阵
-虽然满秩，却因为特征值重复而不能暴露信道方向；真正关键的是reference
-签名具有足够的可辨识性。packet-level HT实现把同一个原理推广为联合
-加权最小二乘的basis-operator估计，再使用码本ML完成判决。
-
-### 222与244的公平比较
-
-\(M\times K\times N\)分别表示WiFi发送天线/stream数、tag天线数和接收天线数。
-本代码比较2x2x2与2x4x4。两种架构每个packet均发送256个tag bits，占用256个
-HT-Data OFDM symbols；没有增加tag FEC、重复data bits、额外每bit能量或选择
-有利信道。
-
-LTF期间的全一tag状态提供\(G(\mathbf1)=I\) baseline。对于\(K\)根tag天线，
-只需额外发送\(K-1\)种状态，并保证baseline与这些reference组成的矩阵满秩。
-
-| 配置 | 222显式reference | 244显式reference |
-|---|---:|---:|
-| Minimal | 1 | 3 |
-| Default（推荐） | 2 | 6 |
-| Robust | 4 | 12 |
-
-相同状态的重复观测通过带可靠度权重的联合最小二乘合并。一个packet只估计一次
-reference block，后续大量codewords共享该估计，因此reference开销可以摊薄。
-
-### 802.11n HT坐标系修复
-
-802.11n在发射前会对spatial streams进行cyclic shift和spatial mapping。tag实际
-调制的是物理天线域波形，而标准接收机最初输出的是均衡后的spatial-stream域
-symbol。若直接混合两种坐标系，VMscatter信道估计将不一致。
-
-本代码在发射端提取完成cyclic shift/spatial mapping后的HT-Data子载波，并在
-接收端对equalized streams执行相同坐标变换。之后，channel estimation和ML
-解码统一在antenna domain进行。ML判决跨全部52个HT20 data tones和全部编码
-symbols累计带权欧氏距离。
-
-### 完整仿真结论
-
-在固定随机种子、2--10 dB共9个SNR点的完整仿真中，三种reference配置均有
-7/9个点满足244 BER低于222。Minimal和Default连续5个点的244 BER 95%置信
-区间上界低于222下界，通过预设严格标准；Robust只有连续2个显著点，因此没有
-通过该严格标准。
-
-严谨结论是：仿真总体支持244具有更好的系统级可靠性，但不声称所有SNR点和
-所有reference配置下244都统计显著优于222。
-
-Error rate使用小数表示：`1.0=100%`，`0.01=1%`，`0.0025=0.25%`。
-
-### High-Throughput Mode
-
-论文式(16)中，Low-BER Mode使用`T=1`，联合相邻时隙并进行space-time
-decoding；High-Throughput Mode使用`T=0`，每个OFDM symbol独立判决。
-
-运行完整High-Throughput仿真：
-
-```matlab
-report = run_high_throughput_evaluation;
-```
-
-2-tag映射严格采用论文Figure 4：输入`[a b]`映射为
-`[exp(j*pi*(a+b)), exp(j*pi*a)]`。论文展示了4-tag的throughput结果，但没有
-单独写出4-tag high-throughput映射矩阵，因此本仿真对两组天线分别应用相同的
-2-tag映射，并在代码中明确标注为pairwise extension。
-
-原型中一个tag state保持两个4微秒HT OFDM symbols，因此一个tag time slot为
-8微秒。对应raw rate为：1-tag约125 kbps、222为250 kbps、244为500 kbps。
-222和244均占用256个HT data symbols，也就是128个tag slots，分别承载256和
-512个tag bits。实际net goodput会另外计入reference overhead和误码。
-
-## License
-
-This code is released under the MIT License. See [LICENSE](LICENSE).
-
-## 许可证
-
-本代码采用 MIT License 发布，详见 [LICENSE](LICENSE)。
