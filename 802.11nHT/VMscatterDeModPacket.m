@@ -36,7 +36,8 @@ for blockIndex = 1:schedule.numReferenceBlocks
     for codewordIndex = reshape(codewordIndices, 1, [])
         [bits, codewordDiagnostics] = decodeOneCodeword( ...
             basisOperators, txSC, rxSC, ...
-            schedule.dataSymbolIndices(codewordIndex, :), numTag, weights);
+            schedule.dataSymbolIndices(codewordIndex, :), ...
+            numTag, schedule.mode, weights);
         if ~codewordDiagnostics.success
             diagnostics.reason = codewordDiagnostics.reason;
             return;
@@ -56,7 +57,7 @@ success = all(diagnostics.codewordSuccess);
 end
 
 function [bits, diagnostics] = decodeOneCodeword( ...
-    basisOperators, txSC, rxSC, symbolIndices, numTag, weights)
+    basisOperators, txSC, rxSC, symbolIndices, numTag, mode, weights)
 
 diagnostics = struct('success', false, 'reason', "", ...
     'candidateDistances', inf(1, 2^numTag), ...
@@ -71,10 +72,19 @@ sqrtWeights = sqrt(weights.');
 
 for candidateIndex = 1:2^numTag
     candidateBits = dec2bin(candidateIndex - 1, numTag) - '0';
-    candidateCode = iterativeSTC(candidateBits);
+    if strcmpi(mode, 'LowBER')
+        candidateCode = iterativeSTC(candidateBits);
+    elseif strcmpi(mode, 'HighThroughput')
+        state = vmscatterHighThroughputMap(candidateBits).';
+        candidateCode = repmat(state, 1, numel(symbolIndices));
+    else
+        diagnostics.reason = "Unsupported VMscatter packet mode.";
+        bits = nan(1, numTag);
+        return;
+    end
     squaredError = 0;
     signalEnergy = 0;
-    for symbolOffset = 1:numTag
+    for symbolOffset = 1:numel(symbolIndices)
         operator = zeros(size(txSC, 1));
         for tagIndex = 1:numTag
             operator = operator + candidateCode(tagIndex, symbolOffset) * ...

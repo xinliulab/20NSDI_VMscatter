@@ -37,6 +37,12 @@ For the full 2--10 dB evaluation:
 result = run_full_evaluation;
 ```
 
+To reproduce the paper's high-throughput mode:
+
+```matlab
+report = run_high_throughput_evaluation;
+```
+
 Generated CSV, MAT, FIG, and PNG files are written to `results/`. That
 directory is created locally and is not tracked by Git.
 
@@ -76,6 +82,40 @@ Both architectures carry 256 tag bits in 256 HT-Data OFDM symbols per packet:
 codewords. This keeps the data-symbol time and tag information bits equal.
 No tag FEC, repeated data bits, favorable-channel selection, or extra
 per-bit reflection energy is used.
+
+## Low-BER and high-throughput modes
+
+The receiver follows Eqn. 16 in the paper:
+
+- **LowBER (`T=1`)** jointly detects adjacent coded symbols and then applies
+  recursive space-time decoding. It carries one tag bit per OFDM symbol.
+- **HighThroughput (`T=0`)** detects each tag time slot independently. The
+  prototype holds one tag state for two 4-microsecond HT OFDM symbols, so one
+  tag slot lasts 8 microseconds. A 2-tag slot carries two bits; a 4-tag slot
+  carries four.
+
+For the documented two-antenna mapping in Fig. 4, information bits `[a b]`
+produce tag states
+
+\[
+\left[e^{j\pi(a+b)}, e^{j\pi a}\right].
+\]
+
+For four tag antennas, this simulator applies the same documented mapping to
+two independent antenna pairs. This is a bijective 4-bit-to-4-state pairwise
+extension; the paper reports the four-antenna throughput result but does not
+write a separate four-antenna high-throughput mapping matrix.
+
+With an 8-microsecond tag slot, the ideal raw tag rates are:
+
+| Mode | 2x2x2 | 2x4x4 |
+|---|---:|---:|
+| HighThroughput | 250 kbps | 500 kbps |
+
+For reference, the corresponding one-tag rate is 125 kbps. Both
+high-throughput architectures occupy 256 HT data symbols (128 tag slots) per
+packet, so 2x2x2 carries 256 tag bits and 2x4x4 carries 512 tag bits before
+errors and reference overhead. Net goodput is reported separately.
 
 ## Reference design and channel estimation
 
@@ -151,6 +191,7 @@ tests/                        public regression tests
 Circuit/                      VMscatter hardware design files
 run_quick_demo.m              short installation/data-flow check
 run_full_evaluation.m         full reference-profile evaluation
+run_high_throughput_evaluation.m  paper T=0 throughput evaluation
 ```
 
 ## Citation
@@ -239,3 +280,24 @@ symbols累计带权欧氏距离。
 所有reference配置下244都统计显著优于222。
 
 Error rate使用小数表示：`1.0=100%`，`0.01=1%`，`0.0025=0.25%`。
+
+### High-Throughput Mode
+
+论文式(16)中，Low-BER Mode使用`T=1`，联合相邻时隙并进行space-time
+decoding；High-Throughput Mode使用`T=0`，每个OFDM symbol独立判决。
+
+运行完整High-Throughput仿真：
+
+```matlab
+report = run_high_throughput_evaluation;
+```
+
+2-tag映射严格采用论文Figure 4：输入`[a b]`映射为
+`[exp(j*pi*(a+b)), exp(j*pi*a)]`。论文展示了4-tag的throughput结果，但没有
+单独写出4-tag high-throughput映射矩阵，因此本仿真对两组天线分别应用相同的
+2-tag映射，并在代码中明确标注为pairwise extension。
+
+原型中一个tag state保持两个4微秒HT OFDM symbols，因此一个tag time slot为
+8微秒。对应raw rate为：1-tag约125 kbps、222为250 kbps、244为500 kbps。
+222和244均占用256个HT data symbols，也就是128个tag slots，分别承载256和
+512个tag bits。实际net goodput会另外计入reference overhead和误码。

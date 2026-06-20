@@ -1,6 +1,9 @@
 function report = run_vmscatter_paper_comparison(varargin)
-%RUN_VMSCATTER_PAPER_COMPARISON Fair low-BER comparison of 2x2x2 and 2x4x4.
-%   Both architectures carry 256 tag bits in 256 data OFDM symbols.
+%RUN_VMSCATTER_PAPER_COMPARISON Compare 2x2x2 and 2x4x4 VMscatter modes.
+%   Both architectures occupy the same number of HT-Data OFDM symbols.
+%   LowBER carries one tag bit per data symbol. HighThroughput carries K
+%   tag bits per 8-us tag slot (two HT OFDM symbols), matching the
+%   prototype's 125/250/500 kbps rate scale and T=0 in paper Eqn. 16.
 %   ReferenceRepeats applies only to the K-1 explicit states. The all-ones
 %   baseline operator is supplied by conventional HT-LTF equalization.
 
@@ -18,19 +21,24 @@ addParameter(parser, 'PSDULength', 2000, ...
     @(x) isnumeric(x) && isscalar(x) && x >= 1 && fix(x) == x);
 addParameter(parser, 'MCS', 8, ...
     @(x) isnumeric(x) && isscalar(x) && ismember(x, 8:15));
+addParameter(parser, 'Mode', 'LowBER', ...
+    @(x) any(strcmpi(string(x), ["LowBER", "HighThroughput"])));
+addParameter(parser, 'NumDataSymbols', 256, ...
+    @(x) isnumeric(x) && isscalar(x) && x >= 1 && fix(x) == x);
 addParameter(parser, 'Seed', 2020, ...
     @(x) isnumeric(x) && isscalar(x) && isfinite(x));
 addParameter(parser, 'Plot', true, @(x) islogical(x) && isscalar(x));
 parse(parser, varargin{:});
 options = parser.Results;
+options.Mode = validatestring(options.Mode, {'LowBER', 'HighThroughput'});
 
 if options.MaxBits < options.MinBits
     error('VMScatter:InvalidBitBudget', ...
         'MaxBits must be greater than or equal to MinBits.');
 end
 
-config222 = architectureConfig(2, 2, 128, options);
-config244 = architectureConfig(4, 4, 64, options);
+config222 = architectureConfig(2, 2, options);
+config244 = architectureConfig(4, 4, options);
 
 results222 = simulateArchitecture(config222, options);
 results244 = simulateArchitecture(config244, options);
@@ -76,28 +84,48 @@ report.rateTable = rateTable;
 report.diversitySlope222 = slope222;
 report.diversitySlope244 = slope244;
 report.consecutiveStrictWins244 = longestRun(strictlyBetter);
-report.successCriterion = report.consecutiveStrictWins244 >= 3 && ...
-    slope244 < slope222;
+report.meanGoodputGain244 = mean(results244.NetGoodputKbps) / ...
+    max(mean(results222.NetGoodputKbps), eps);
+if strcmpi(options.Mode, 'LowBER')
+    report.successCriterion = report.consecutiveStrictWins244 >= 3 && ...
+        slope244 < slope222;
+else
+    % High-throughput mode trades diversity for K bits per tag slot.
+    % Its acceptance criterion is higher delivered goodput, not lower BER.
+    report.successCriterion = report.meanGoodputGain244 > 1;
+end
 report.settings = options;
+report.mode = string(options.Mode);
 
 if options.Plot
     plotComparison(report);
 end
 end
 
-function config = architectureConfig(numTag, numRx, numCodewords, options)
+function config = architectureConfig(numTag, numRx, options)
 config = struct;
 config.numTx = 2;
 config.numTag = numTag;
 config.numRx = numRx;
-config.numCodewords = numCodewords;
-config.bitsPerPacket = numTag * numCodewords;
-config.numDataSymbols = numTag * numCodewords;
+if strcmpi(options.Mode, 'LowBER')
+    config.symbolsPerCodeword = numTag;
+else
+    config.symbolsPerCodeword = 2;
+end
+if mod(options.NumDataSymbols, config.symbolsPerCodeword) ~= 0
+    error('VMScatter:InvalidDataSymbolBudget', ...
+        'NumDataSymbols must be divisible by symbols per codeword.');
+end
+config.numCodewords = options.NumDataSymbols / config.symbolsPerCodeword;
+config.bitsPerPacket = numTag * config.numCodewords;
+config.numDataSymbols = options.NumDataSymbols;
 config.numReferenceSymbols = (numTag - 1) * options.ReferenceRepeats;
 config.referenceOverheadFraction = config.numReferenceSymbols / ...
     (config.numReferenceSymbols + config.numDataSymbols);
-config.rawTagRateKbps = 1 / 4e-6 / 1e3;
+config.rawTagRateKbps = ...
+    (numTag / config.symbolsPerCodeword) / 4e-6 / 1e3;
 config.name = sprintf('2x%dx%d', numTag, numRx);
+config.mode = string(options.Mode);
 end
 
 function results = simulateArchitecture(config, options)
@@ -128,7 +156,8 @@ fieldIndices = wlanFieldIndices(cfgHT);
 
 % Verify that the selected HT packet can carry the complete tag schedule.
 [~, ~, templateSchedule] = vmscatterBuildPacketSchedule( ...
-    config.numTag, config.numCodewords, options.ReferenceRepeats);
+    config.numTag, config.numCodewords, options.ReferenceRepeats, ...
+    'Mode', options.Mode);
 ofdmInfo = wlanHTOFDMInfo('HT-Data', cfgHT);
 availableSymbols = floor((fieldIndices.HTData(2) - fieldIndices.HTData(1) + 1) / ...
     (ofdmInfo.FFTLength + ofdmInfo.CPLength));
@@ -162,7 +191,8 @@ for snrIndex = 1:numPoints
             preTagWaveform, fieldIndices, config.numTag, cfgHT, ...
             'NumCodewords', config.numCodewords, ...
             'ReferenceRepeats', options.ReferenceRepeats, ...
-            'TagBits', packetTagBits);
+            'TagBits', packetTagBits, ...
+            'Mode', options.Mode);
         rx = postChannel(taggedWaveform);
         rx = vmscatterAddMeasuredNoise(rx, snrValues(snrIndex));
         [~, rxStreams, detectionError, rxDiagnostics] = rxDemod( ...
@@ -299,6 +329,7 @@ function plotComparison(report)
 comparison = report.comparison;
 figure;
 tiledlayout(2, 2);
+modeLabel = char(report.mode);
 
 nexttile;
 semilogy(comparison.SNRdB, comparison.BER222Upper95, '-o', ...
@@ -307,7 +338,7 @@ grid on;
 xlabel('Measured waveform SNR (dB)');
 ylabel('Conditional tag BER / 95% upper bound');
 legend('2x2x2', '2x4x4', 'Location', 'southwest');
-title('Low-BER diversity comparison');
+title(sprintf('%s BER comparison', modeLabel));
 
 nexttile;
 semilogy(comparison.SNRdB, comparison.EndToEndBER222, '-o', ...
