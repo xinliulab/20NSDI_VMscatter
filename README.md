@@ -260,11 +260,17 @@ This code is released under the MIT License. See [LICENSE](LICENSE).
 ## Citation
 
 ```bibtex
-@inproceedings{liu2020vmscatter,
-  title     = {VMscatter: A Versatile MIMO Backscatter},
-  author    = {Liu, Xin and Chi, Zicheng and Wang, Wei and Yao, Yao and Zhu, Ting},
-  booktitle = {17th USENIX Symposium on Networked Systems Design and Implementation (NSDI 20)},
-  year      = {2020}
+@inproceedings {vmscatter,
+	author = {Xin Liu and Zicheng Chi and Wei Wang and Yao Yao and Ting Zhu},
+	title = {{VMscatter}: A Versatile {MIMO} Backscatter },
+	booktitle = {17th USENIX Symposium on Networked Systems Design and Implementation (NSDI 20)},
+	year = {2020},
+	isbn = {978-1-939133-13-7},
+	address = {Santa Clara, CA},
+	pages = {895--909},
+	url = {https://www.usenix.org/conference/nsdi20/presentation/liu-xin},
+	publisher = {USENIX Association},
+	month = feb
 }
 ```
 
@@ -487,10 +493,16 @@ run_high_throughput_evaluation.m  论文T=0 throughput评估
 ### 引用
 
 ```bibtex
-@inproceedings{liu2020vmscatter,
-  title     = {VMscatter: A Versatile MIMO Backscatter},
-  author    = {Liu, Xin and Chi, Zicheng and Wang, Wei and Yao, Yao and Zhu, Ting},
-  booktitle = {17th USENIX Symposium on Networked Systems Design and Implementation (NSDI 20)},
-  year      = {2020}
+@inproceedings {vmscatter,
+	author = {Xin Liu and Zicheng Chi and Wei Wang and Yao Yao and Ting Zhu},
+	title = {{VMscatter}: A Versatile {MIMO} Backscatter },
+	booktitle = {17th USENIX Symposium on Networked Systems Design and Implementation (NSDI 20)},
+	year = {2020},
+	isbn = {978-1-939133-13-7},
+	address = {Santa Clara, CA},
+	pages = {895--909},
+	url = {https://www.usenix.org/conference/nsdi20/presentation/liu-xin},
+	publisher = {USENIX Association},
+	month = feb
 }
 ```
