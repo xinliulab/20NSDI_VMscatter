@@ -1,59 +1,85 @@
-function [rxPSDU, rxDataSubcarrier, detectionError] = rxDemod(rx, cfgHT) 
+function [rxPSDU, rxDataSubcarrier, detectionError, diagnostics] = rxDemod( ...
+    rx, cfgHT, varargin)
+%RXDEMOD Synchronize and recover an HT packet using R2024b public APIs.
 
-        detectionError = 0;
+parser = inputParser;
+addParameter(parser, 'EqualizationMethod', 'ZF', ...
+    @(x) any(strcmpi(x, {'ZF', 'MMSE'})));
+parse(parser, varargin{:});
+equalizationMethod = upper(string(parser.Results.EqualizationMethod));
 
-        % Packet detect and determine coarse packet offset
-        coarsePktOffset = wlanPacketDetect(rx,cfgHT.ChannelBandwidth);
-        if isempty(coarsePktOffset) % If empty no L-STF detected; packet error
-            detectionError= 1;
-            return;
-        end
+rxPSDU = [];
+rxDataSubcarrier = [];
+detectionError = true;
+diagnostics = struct('reason', "", 'packetOffset', NaN, ...
+    'coarseFrequencyOffset', NaN, 'fineFrequencyOffset', NaN, ...
+    'noiseVariance', NaN, 'equalizationMethod', equalizationMethod, ...
+    'dataSubcarrierReliability', []);
 
-        % Get the baseband sampling rate
-        fs = wlanSampleRate(cfgHT);
+coarsePacketOffset = wlanPacketDetect(rx, cfgHT.ChannelBandwidth);
+if isempty(coarsePacketOffset)
+    diagnostics.reason = "L-STF packet detection failed.";
+    return;
+end
 
-        % Indices for accessing each field within the time-domain packet
-        ind = wlanFieldIndices(cfgHT);
+sampleRate = wlanSampleRate(cfgHT);
+ind = wlanFieldIndices(cfgHT);
+if coarsePacketOffset + ind.LSIG(2) > size(rx, 1)
+    diagnostics.reason = "The detected packet is truncated before L-SIG.";
+    return;
+end
 
-        % Extract L-STF and perform coarse frequency offset correction
-        lstf = rx(coarsePktOffset+(ind.LSTF(1):ind.LSTF(2)),:);
-        coarseFreqOff = wlanCoarseCFOEstimate(lstf,cfgHT.ChannelBandwidth);
-        rx = frequencyOffset(rx,fs,-coarseFreqOff);
+lstf = rx(coarsePacketOffset + (ind.LSTF(1):ind.LSTF(2)), :);
+diagnostics.coarseFrequencyOffset = ...
+    wlanCoarseCFOEstimate(lstf, cfgHT.ChannelBandwidth);
+rx = frequencyOffset(rx, sampleRate, -diagnostics.coarseFrequencyOffset);
 
-        % Extract the non-HT fields and determine fine packet offset
-        nonhtfields = rx(coarsePktOffset+(ind.LSTF(1):ind.LSIG(2)),:);
-        finePktOffset = wlanSymbolTimingEstimate(nonhtfields,...
-            cfgHT.ChannelBandwidth);
+nonHTFields = rx(coarsePacketOffset + (ind.LSTF(1):ind.LSIG(2)), :);
+finePacketOffset = wlanSymbolTimingEstimate(nonHTFields, cfgHT.ChannelBandwidth);
+packetOffset = coarsePacketOffset + finePacketOffset;
+diagnostics.packetOffset = packetOffset;
+if packetOffset + ind.LLTF(1) < 1 || packetOffset + ind.HTData(2) > size(rx, 1)
+    diagnostics.reason = "The synchronized packet is outside the received buffer.";
+    return;
+end
 
-        % Determine final packet offset
-        pktOffset = coarsePktOffset+finePktOffset;
+lltf = rx(packetOffset + (ind.LLTF(1):ind.LLTF(2)), :);
+diagnostics.fineFrequencyOffset = wlanFineCFOEstimate(lltf, cfgHT.ChannelBandwidth);
+rx = frequencyOffset(rx, sampleRate, -diagnostics.fineFrequencyOffset);
 
-        % If packet detected outwith the range of expected delays from the
-        % channel modeling; packet error
-        if pktOffset>15
-            detectionError = 1;
-            return;
-        end
+lltf = rx(packetOffset + (ind.LLTF(1):ind.LLTF(2)), :);
+lltfDemod = wlanLLTFDemodulate(lltf, cfgHT.ChannelBandwidth);
+diagnostics.noiseVariance = max(wlanLLTFNoiseEstimate(lltfDemod), eps);
 
-        % Extract L-LTF and perform fine frequency offset correction
-        lltf = rx(pktOffset+(ind.LLTF(1):ind.LLTF(2)),:);
-        fineFreqOff = wlanFineCFOEstimate(lltf,cfgHT.ChannelBandwidth);
-        rx = frequencyOffset(rx,fs,-fineFreqOff);
+htltf = rx(packetOffset + (ind.HTLTF(1):ind.HTLTF(2)), :);
+htltfDemod = wlanHTLTFDemodulate(htltf, cfgHT);
+channelEstimate = wlanHTLTFChannelEstimate(htltfDemod, cfgHT);
+diagnostics.dataSubcarrierReliability = ...
+    calculateSubcarrierReliability(channelEstimate, cfgHT);
+htdata = rx(packetOffset + (ind.HTData(1):ind.HTData(2)), :);
 
-        % Extract HT-LTF samples from the waveform, demodulate and perform
-        % channel estimation
-        htltf = rx(pktOffset+(ind.HTLTF(1):ind.HTLTF(2)),:);
-        htltfDemod = wlanHTLTFDemodulate(htltf,cfgHT);
-        chanEst = wlanHTLTFChannelEstimate(htltfDemod,cfgHT);
+[rxPSDU, rxDataSubcarrier] = wlanHTDataRecover( ...
+    htdata, channelEstimate, diagnostics.noiseVariance, cfgHT, ...
+    'EqualizationMethod', char(equalizationMethod), ...
+    'PilotPhaseTracking', 'None', ...
+    'PilotAmplitudeTracking', 'None');
 
-        % Extract HT Data samples from the waveform
-        htdata = rx(pktOffset+(ind.HTData(1):ind.HTData(2)),:);
+detectionError = false;
+diagnostics.reason = "";
+end
 
-        % Estimate the noise power in HT data field
-        nVarHT = htNoiseEstimate(htdata,chanEst,cfgHT);
-
-        % Recover the transmitted PSDU in HT Data
-        [rxPSDU, rxDataSubcarrier]  = wlanHTDataRecover(htdata,chanEst,nVarHT,cfgHT, ...
-            "LDPCDecodingMethod","norm-min-sum", 'PilotPhaseTracking', 'None');
-
+function reliability = calculateSubcarrierReliability(channelEstimate, cfgHT)
+% A low minimum singular value identifies a tone on which ZF strongly
+% amplifies noise. Normalize the weights so their mean is one.
+info = wlanHTOFDMInfo('HT-Data', cfgHT);
+dataChannel = channelEstimate(info.DataIndices, :, :);
+numDataTones = size(dataChannel, 1);
+reliability = zeros(numDataTones, 1);
+for toneIndex = 1:numDataTones
+    channel = squeeze(dataChannel(toneIndex, :, :));
+    singularValues = svd(channel);
+    reliability(toneIndex) = min(singularValues).^2;
+end
+reliability = reliability ./ max(mean(reliability), eps);
+reliability = min(max(reliability, 1e-3), 10);
 end

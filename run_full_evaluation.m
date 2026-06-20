@@ -1,0 +1,26 @@
+function result = run_full_evaluation
+%RUN_FULL_EVALUATION Run the publication-grade three-profile experiment.
+
+versionRoot = fileparts(mfilename('fullpath'));
+oldPath = path;
+cleanup = onCleanup(@() path(oldPath));
+restoredefaultpath;
+addpath(fullfile(versionRoot, '802.11nHT'));
+addpath(fullfile(versionRoot, 'tests'));
+result = run_all_reference_profiles( ...
+    'SNR', 2:10, ...
+    'MinBits', 1e5, ...
+    'MaxBits', 2e6, ...
+    'TargetErrors', 200, ...
+    'Plot', true, ...
+    'SaveResults', true);
+disp(result.summary);
+if result.anyProfileSucceeded
+    fprintf('Profiles satisfying the strict 244 reliability criterion: %s\n', ...
+        strjoin(cellstr(result.successfulProfiles), ', '));
+else
+    fprintf(['No profile satisfied the strict criterion. Inspect the saved ' ...
+        'confidence intervals and diagnostics; results were not forced.\n']);
+end
+clear cleanup
+end

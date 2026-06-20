@@ -1,66 +1,241 @@
-# VMscatter
+# VMscatter: A Versatile MIMO Backscatter
 
-## Project Overview
+[中文说明](#中文说明)
 
-This repository contains the MATLAB code for the VMscatter system, as presented in our paper at NSDI 2020. VMscatter is a versatile MIMO backscatter system leveraging MIMO diversity to significantly reduce bit error rate (BER) and enhance throughput with minimal overhead. Unlike traditional WiFi MIMO backscatter approaches, VMscatter utilizes advanced MIMO features, enabling full diversity gains even under the constraint of non-orthogonal reflected signals from backscatter tags.
+This repository contains the MATLAB proof-of-concept and IEEE 802.11n HT
+simulation for **VMscatter**, published at USENIX NSDI 2020:
 
-## Code Structure
+> Xin Liu, Zicheng Chi, Wei Wang, Yao Yao, and Ting Zhu.
+> [VMscatter: A Versatile MIMO Backscatter](https://www.usenix.org/conference/nsdi20/presentation/liu-xin).
+> 17th USENIX Symposium on Networked Systems Design and Implementation, 2020.
 
-The code is divided into two main parts:
+## Requirements
 
-### Proof-of-Concept Simulation
-- This is a simplified 2x2 WiFi MIMO Backscatter simulation based on 802.11g. 
-- It is designed to provide an understanding of the decoding algorithms used in VMscatter.
-- The simulation includes three methodologies: Lite, Accurate, and Efficient.
+- MATLAB R2024b
+- WLAN Toolbox
+- Communications Toolbox
+- Signal Processing Toolbox
 
-### 802.11nHT
-- Based on MATLAB's 802.11n Packet Error Rate Simulation for a 2x2 TGn Channel.
-- This code integrates backscatter modulation and demodulation into the code.
-- It accounts for multipath effects, delays, noise, etc.
-- The code can be connected to MATLAB's USRP API for real-world experimentation.
+The release uses the official MathWorks WLAN APIs. It does not include or
+modify copies of MathWorks functions.
 
-## Special Considerations
+## Quick start
 
-- In both simulations, careful design of the reference signal is crucial. The matrix for channel estimationg formed by the reference signal and a '0' sequence must be full rank. For example, with a 2x2 '0' sequence backscatter data of [1,1], the reference signal backscatter must be [1,-1] or [-1,1], but not [-1,-1].
-- The Lite method does not require an in-depth estimation of the channel and infers backscatter data based on the channel's phase.
-- The Efficient method requires a detailed estimation of the channel. While the real MIMO backscatter channel has infinitely many solutions, any solution can be used for decoding as the information is carried on the phase.
-- In the proof-of-concept simulation, we demonstrate three methods. However, in the 802.11nHT code, we implement the Efficient method.
-- VMscatter operates on symbol-level modulation, and pilot tracking should be disabled.
+From the repository root:
 
-## Conclusion
+```matlab
+result = run_quick_demo;
+```
 
-The VMscatter design introduces negligible overheads in terms of hardware cost, energy consumption, and computation, making it a practical solution for advanced MIMO backscatter systems.
+This short run checks installation and the complete modulation, channel,
+estimation, and decoding path. Its BER sample size is deliberately small and
+must not be used as a publication result.
 
+For the full 2--10 dB evaluation:
 
-# VMscatter代码中文说明
+```matlab
+result = run_full_evaluation;
+```
 
-## 项目概述
+Generated CSV, MAT, FIG, and PNG files are written to `results/`. That
+directory is created locally and is not tracked by Git.
 
-本代码仓库包含了在NSDI 2020发表的VMscatter系统的MATLAB仿真代码。VMscatter是一种多功能的MIMO反向散射系统，通过利用MIMO的多样性特征显著降低比特错误率（BER）并提高吞吐量，同时几乎不增加额外开销。与传统的WiFi MIMO反向散射方法不同，VMscatter利用了MIMO技术的先进特性，在反向散射标签不能控制反射信号正交的限制下，实现了与传统MIMO系统相同的全多样性增益。
+To inspect the decoding principle without the complete HT PHY:
 
-## 代码结构
+```matlab
+cd Proof-of-Concept_Simulation
+report = run_poc_simulation;
+```
 
-代码主要分为两部分：
+The public PoC entry runs 1,000 codewords by default. The extended regression
+suite audits 10,000 codewords.
 
-### 概念验证仿真
-- 这是基于802.11g的简化2x2 WiFi MIMO反向散射仿真。
-- 旨在帮助用户理解VMscatter中使用的解码算法。
-- 仿真包括三种方法：轻量级（Lite）、精确（Accurate）和高效（Efficient）
+Run the public regression suite with:
 
-### 802.11nHT仿真
-- 基于MatLab的802.11n 2x2 TGn信道的包错误率仿真。
-- 将反向散射的调制和解调集成到代码中。
-- 考虑了多径效应、延迟、噪声等因素。
-- 此代码可以连接到MatLab的USRP API，以实现真实环境下的实验。
+```matlab
+addpath tests
+reports = run_all_tests('Full', false); % quick
+reports = run_all_tests('Full', true);  % extended noiseless validation
+```
 
-## 特别注意事项
+## Simulation structure
 
-- 在两种仿真中，都需要精心设计参考信号。由参考信号和'0'序列组成的测试信道矩阵必须是满秩的。例如，对于2x2的'0'序列反向散射数据[1,1]，参考信号中的反向散射必须是[1,-1]或[-1,1]，而不能是[-1,-1]。
-- 第一种方法不需要深入估计信道，而是根据信道的相位来推断反向散射数据。
-- 第二种方法需要深入估计信道。尽管真实的MIMO反向散射信道有无穷多解，但任何解都可用于解码，因为信息是载在相位上的。
-- 在概念验证仿真中，我们展示了三种方法。然而，在802.11nHT代码中，我们实现了高效(Efficient)的方法。
-- VMscatter采用符号级调制，需要关闭导频跟踪。
+VMscatter uses the notation \(M\times K\times N\):
 
-## 结论
+- \(M\): WiFi transmit antennas/streams;
+- \(K\): VMscatter tag antennas;
+- \(N\): receiver antennas.
 
-VMscatter设计引入的额外开销（包括硬件成本、能耗和计算）微乎其微，使其成为实用的先进MIMO反向散射系统解决方案。
+The release compares:
+
+- **2x2x2**: 2 WiFi transmit streams, 2 tag antennas, 2 receive antennas;
+- **2x4x4**: 2 WiFi transmit streams, 4 tag antennas, 4 receive antennas.
+
+Both architectures carry 256 tag bits in 256 HT-Data OFDM symbols per packet:
+2x2x2 uses 128 two-bit codewords, while 2x4x4 uses 64 four-bit recursive-STC
+codewords. This keeps the data-symbol time and tag information bits equal.
+No tag FEC, repeated data bits, favorable-channel selection, or extra
+per-bit reflection energy is used.
+
+## Reference design and channel estimation
+
+During the HT-LTF, the tag uses the all-ones state. Conventional WiFi channel
+estimation and equalization therefore provide the baseline operator
+
+\[
+G(\mathbf 1)=I.
+\]
+
+For \(K\) tag antennas, only \(K-1\) additional states are transmitted. The
+design must satisfy
+
+\[
+\operatorname{rank}
+\left[\mathbf 1,\mathbf d_1,\ldots,\mathbf d_{K-1}\right]=K.
+\]
+
+The three evaluation profiles are:
+
+| Profile | 2x2x2 explicit reference symbols | 2x4x4 explicit reference symbols |
+|---|---:|---:|
+| Minimal | 1 | 3 |
+| Default (recommended) | 2 | 6 |
+| Robust | 4 | 12 |
+
+Repeated observations of each state are combined by weighted joint
+least-squares. One reference block is reused by all codewords in the packet,
+so its overhead is amortized over the data field.
+
+## Why antenna-domain alignment matters
+
+In IEEE 802.11n HT, cyclic shifts and spatial mapping transform spatial-stream
+symbols before transmission. The tag modulates the **physical antenna-domain**
+waveform, but the standard receiver initially returns equalized
+**spatial-stream-domain** symbols. Directly combining these two coordinate
+systems produces an inconsistent VMscatter channel estimate.
+
+The helper functions in `802.11nHT/` extract the transmitted HT-Data tones
+after cyclic shift/spatial mapping and apply the same transformation to the
+equalized receive streams. VMscatter channel estimation and ML decoding then
+operate consistently in the antenna domain.
+
+For every candidate tag codeword, the decoder accumulates a reliability-
+weighted Euclidean distance over all 52 HT20 data subcarriers and all coded
+OFDM symbols. Reported zero-error points use a 95% confidence upper bound
+rather than claiming an exact BER of zero.
+
+## Reproduced reliability result
+
+In the full fixed-seed 2--10 dB run:
+
+- all three reference profiles produced lower 2x4x4 BER at 7 of 9 SNR points;
+- Minimal and Default had five consecutive SNR points whose 2x4x4 95%
+  confidence upper bound was below the 2x2x2 lower bound, and passed the
+  predefined reliability criterion;
+- Robust showed the same overall 7-of-9 trend but only two consecutive
+  strictly separated confidence intervals, so it did not pass that stricter
+  criterion.
+
+Thus the simulation supports a system-level reliability advantage for 2x4x4,
+but it does **not** claim that 2x4x4 is statistically better at every SNR
+point or for every reference setting.
+
+Error rates are fractions: `1.0 = 100%`, `0.01 = 1%`, and `0.0025 = 0.25%`.
+
+## Repository layout
+
+```text
+Proof-of-Concept_Simulation/  simplified decoding mechanism
+802.11nHT/                    final packet-level HT simulation
+tests/                        public regression tests
+Circuit/                      VMscatter hardware design files
+run_quick_demo.m              short installation/data-flow check
+run_full_evaluation.m         full reference-profile evaluation
+```
+
+## Citation
+
+```bibtex
+@inproceedings{liu2020vmscatter,
+  title     = {VMscatter: A Versatile MIMO Backscatter},
+  author    = {Liu, Xin and Chi, Zicheng and Wang, Wei and Yao, Yao and Zhu, Ting},
+  booktitle = {17th USENIX Symposium on Networked Systems Design and Implementation (NSDI 20)},
+  year      = {2020}
+}
+```
+
+---
+
+## 中文说明
+
+本仓库包含VMscatter的MATLAB原理仿真和IEEE 802.11n HT完整仿真。论文发表于
+USENIX NSDI 2020，链接见README开头。
+
+### 环境与运行
+
+需要MATLAB R2024b、WLAN Toolbox、Communications Toolbox和Signal
+Processing Toolbox。本代码只调用MathWorks官方WLAN函数，不包含也不修改
+MATLAB内部函数副本。
+
+在仓库根目录运行：
+
+```matlab
+result = run_quick_demo;
+```
+
+这是快速安装和数据流检查，统计量较小，不能作为正式BER结论。正式复现实验：
+
+```matlab
+result = run_full_evaluation;
+```
+
+正式实验扫描2--10 dB，结果写入本地`results/`。原理解码仿真：
+
+```matlab
+cd Proof-of-Concept_Simulation
+report = run_poc_simulation;
+```
+
+公开PoC入口默认运行1,000个codewords；扩展测试套件使用10,000个codewords。
+
+### 222与244的公平比较
+
+\(M\times K\times N\)分别表示WiFi发送天线/stream数、tag天线数和接收天线数。
+本代码比较2x2x2与2x4x4。两种架构每个packet均发送256个tag bits，占用256个
+HT-Data OFDM symbols；没有增加tag FEC、重复data bits、额外每bit能量或选择
+有利信道。
+
+LTF期间的全一tag状态提供\(G(\mathbf1)=I\) baseline。对于\(K\)根tag天线，
+只需额外发送\(K-1\)种状态，并保证baseline与这些reference组成的矩阵满秩。
+
+| 配置 | 222显式reference | 244显式reference |
+|---|---:|---:|
+| Minimal | 1 | 3 |
+| Default（推荐） | 2 | 6 |
+| Robust | 4 | 12 |
+
+相同状态的重复观测通过带可靠度权重的联合最小二乘合并。一个packet只估计一次
+reference block，后续大量codewords共享该估计，因此reference开销可以摊薄。
+
+### 802.11n HT坐标系修复
+
+802.11n在发射前会对spatial streams进行cyclic shift和spatial mapping。tag实际
+调制的是物理天线域波形，而标准接收机最初输出的是均衡后的spatial-stream域
+symbol。若直接混合两种坐标系，VMscatter信道估计将不一致。
+
+本代码在发射端提取完成cyclic shift/spatial mapping后的HT-Data子载波，并在
+接收端对equalized streams执行相同坐标变换。之后，channel estimation和ML
+解码统一在antenna domain进行。ML判决跨全部52个HT20 data tones和全部编码
+symbols累计带权欧氏距离。
+
+### 完整仿真结论
+
+在固定随机种子、2--10 dB共9个SNR点的完整仿真中，三种reference配置均有
+7/9个点满足244 BER低于222。Minimal和Default连续5个点的244 BER 95%置信
+区间上界低于222下界，通过预设严格标准；Robust只有连续2个显著点，因此没有
+通过该严格标准。
+
+严谨结论是：仿真总体支持244具有更好的系统级可靠性，但不声称所有SNR点和
+所有reference配置下244都统计显著优于222。
+
+Error rate使用小数表示：`1.0=100%`，`0.01=1%`，`0.0025=0.25%`。
